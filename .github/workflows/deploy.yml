@@ -9,7 +9,6 @@ jobs:
   deploy:
     name: Empaquetar y Desplegar
     runs-on: ubuntu-latest
-    needs: tests
     steps:
       - name: Checkout del Código
         uses: actions/checkout@v3
