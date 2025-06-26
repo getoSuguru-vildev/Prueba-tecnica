@@ -1,0 +1,70 @@
+name: Deploy Monolithic Microservices
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  tests:
+    name: Ejecutar Tests Unitarios
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del Código
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+  deploy:
+    name: Empaquetar y Desplegar
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - name: Checkout del Código
+        uses: actions/checkout@v3
+
+      # Empaquetado de Lambda1
+      - name: Build Package Lambda1
+        working-directory: ./lambdas/lambda1
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt -t .
+          zip -r function_lambda1.zip .
+
+
+
+      # Configurar credenciales de AWS (usando secrets configurados en GitHub)
+      - name: Configurar AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      # Instalar Terraform
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      # Inicializar Terraform (se conecta al backend manual configurado previamente)
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init
+
+      # Ejecutar Terraform Plan, pasando las rutas de los paquetes y variables necesarias
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: |
+          terraform plan \
+            -var="lambda1_package=../lambdas/lambda1/function_lambda1.zip" 
+
+      # Ejecutar Terraform Apply solo si el push es a la rama main
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        working-directory: ./terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="lambda1_package=../lambdas/lambda1/function_lambda1.zip" 
